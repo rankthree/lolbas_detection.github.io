@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOLBAS Detection Logic — VSEC VADAR</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #080c10;
+    --surface: #0d1117;
+    --surface2: #161b22;
+    --border: #21262d;
+    --accent: #00ff9d;
+    --accent2: #ff6b35;
+    --accent3: #7c8cf8;
+    --text: #e6edf3;
+    --muted: #7d8590;
+    --red: #f85149;
+    --yellow: #e3b341;
+    --green: #3fb950;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 18px;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+  .header-logo span { color: var(--muted); }
+  .header-tag {
+    background: rgba(0,255,157,0.1);
+    border: 1px solid rgba(0,255,157,0.2);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  .header-stats {
+    margin-left: auto;
+    display: flex;
+    gap: 20px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .header-stats b { color: var(--text); }
+
+  /* Layout */
+  .layout { display: flex; height: calc(100vh - 61px); }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    background: var(--surface);
+    padding: 12px 0;
+  }
+  .sidebar-section {
+    padding: 6px 16px;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 8px;
+  }
+  .sidebar-item {
+    padding: 7px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .sidebar-item:hover { background: var(--surface2); color: var(--text); }
+  .sidebar-item.active {
+    border-left-color: var(--accent);
+    background: rgba(0,255,157,0.05);
+    color: var(--accent);
+  }
+  .sidebar-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+  .sidebar-count {
+    margin-left: auto;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0 6px;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  /* Main content */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 32px;
+  }
+
+  /* Search */
+  .search-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    margin-bottom: 24px;
+  }
+  .search-bar input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    flex: 1;
+  }
+  .search-bar input::placeholder { color: var(--muted); }
+  .search-icon { color: var(--muted); font-size: 14px; }
+
+  /* Section heading */
+  .section-heading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .section-mitre {
+    background: rgba(124,140,248,0.12);
+    border: 1px solid rgba(124,140,248,0.25);
+    color: var(--accent3);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  .section-divider {
+    height: 1px;
+    background: var(--border);
+    margin-bottom: 20px;
+  }
+
+  /* Rule cards */
+  .rules-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 32px;
+  }
+  .rule-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .rule-card:hover { border-color: #30363d; }
+  .rule-card.expanded { border-color: var(--accent3); }
+
+  .rule-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .rule-id {
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .rule-level {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .lvl-low    { background: rgba(63,185,80,0.15);  color: var(--green);  border: 1px solid rgba(63,185,80,0.3); }
+  .lvl-med    { background: rgba(227,179,65,0.15); color: var(--yellow); border: 1px solid rgba(227,179,65,0.3); }
+  .lvl-high   { background: rgba(248,81,73,0.15);  color: var(--red);    border: 1px solid rgba(248,81,73,0.3); }
+
+  .rule-desc {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .rule-badges { display: flex; gap: 6px; flex-shrink: 0; }
+  .badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .badge-sysmon { color: #58a6ff; border-color: rgba(88,166,255,0.25); background: rgba(88,166,255,0.08); }
+  .badge-native { color: #bc8cff; border-color: rgba(188,140,255,0.25); background: rgba(188,140,255,0.08); }
+  .badge-both   { color: #ffa657; border-color: rgba(255,166,87,0.25);  background: rgba(255,166,87,0.08); }
+  .badge-reg    { color: #ff7b72; border-color: rgba(255,123,114,0.25); background: rgba(255,123,114,0.08); }
+  .badge-net    { color: #39d353; border-color: rgba(57,211,83,0.25);   background: rgba(57,211,83,0.08); }
+  .badge-file   { color: #e3b341; border-color: rgba(227,179,65,0.25);  background: rgba(227,179,65,0.08); }
+
+  .rule-chevron { color: var(--muted); font-size: 10px; margin-left: 4px; }
+
+  /* Rule body */
+  .rule-body {
+    display: none;
+    padding: 0 16px 16px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .rule-card.expanded .rule-body { display: block; }
+
+  .logic-block {
+    margin-top: 14px;
+  }
+  .logic-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .logic-items { display: flex; flex-direction: column; gap: 6px; }
+  .logic-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-radius: 5px;
+    border: 1px solid var(--border);
+  }
+  .logic-op {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+    margin-top: 1px;
+  }
+  .op-and { background: rgba(0,255,157,0.1); color: var(--accent); border: 1px solid rgba(0,255,157,0.2); }
+  .op-not { background: rgba(248,81,73,0.1); color: var(--red); border: 1px solid rgba(248,81,73,0.2); }
+  .op-list { background: rgba(227,179,65,0.1); color: var(--yellow); border: 1px solid rgba(227,179,65,0.2); }
+
+  .logic-field {
+    font-size: 11px;
+    color: var(--accent3);
+  }
+  .logic-val {
+    font-size: 11px;
+    color: var(--muted);
+    word-break: break-all;
+  }
+  .logic-val code {
+    color: var(--accent2);
+    background: rgba(255,107,53,0.08);
+    padding: 0 4px;
+    border-radius: 3px;
+  }
+
+  .alert-block {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(124,140,248,0.07);
+    border: 1px solid rgba(124,140,248,0.18);
+    border-radius: 5px;
+    font-size: 11px;
+    color: var(--accent3);
+  }
+
+  /* LOLBin sections hidden/shown */
+  .lolbin-section { display: none; }
+  .lolbin-section.active { display: block; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #30363d; }
+
+  .empty { color: var(--muted); text-align: center; padding: 48px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">VADAR<span>/</span>VSEC</div>
+  <div class="header-tag">LOLBAS Detection Logic</div>
+  <div class="header-tag" style="color:var(--accent2);border-color:rgba(255,107,53,0.3);background:rgba(255,107,53,0.08);">Windows</div>
+  <div class="header-stats">
+    <span>Rules: <b>46</b></span>
+    <span>LOLBins: <b>8</b></span>
+    <span>Base SID: <b>60000</b></span>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-section">LOLBin Coverage</div>
+    <div class="sidebar-item active" data-target="addinutil" onclick="showSection(this,'addinutil')">
+      <span class="sidebar-dot"></span>AddinUtil.exe<span class="sidebar-count">6</span>
+    </div>
+    <div class="sidebar-item" data-target="appinstaller" onclick="showSection(this,'appinstaller')">
+      <span class="sidebar-dot"></span>AppInstaller.exe<span class="sidebar-count">6</span>
+    </div>
+    <div class="sidebar-item" data-target="aspnet" onclick="showSection(this,'aspnet')">
+      <span class="sidebar-dot"></span>aspnet_compiler<span class="sidebar-count">4</span>
+    </div>
+    <div class="sidebar-item" data-target="at" onclick="showSection(this,'at')">
+      <span class="sidebar-dot"></span>At.exe<span class="sidebar-count">4</span>
+    </div>
+    <div class="sidebar-item" data-target="atbroker" onclick="showSection(this,'atbroker')">
+      <span class="sidebar-dot"></span>ATBroker.exe<span class="sidebar-count">4</span>
+    </div>
+    <div class="sidebar-item" data-target="bash" onclick="showSection(this,'bash')">
+      <span class="sidebar-dot"></span>Bash.exe<span class="sidebar-count">8</span>
+    </div>
+    <div class="sidebar-item" data-target="bitsadmin" onclick="showSection(this,'bitsadmin')">
+      <span class="sidebar-dot"></span>Bitsadmin.exe<span class="sidebar-count">7</span>
+    </div>
+    <div class="sidebar-item" data-target="certoc" onclick="showSection(this,'certoc')">
+      <span class="sidebar-dot"></span>CertOC.exe<span class="sidebar-count">2</span>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="search-bar">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="searchInput" placeholder="Tìm theo Rule ID hoặc mô tả..." oninput="filterRules()">
+    </div>
+
+    <!-- ===== ADDINUTIL ===== -->
+    <div class="lolbin-section active" id="section-addinutil">
+      <div class="section-heading">
+        <div class="section-title">AddinUtil.exe</div>
+        <span class="section-mitre">T1218 · System Binary Proxy Execution</span>
+      </div>
+      <div class="section-divider"></div>
+      <div class="rules-grid">
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170102 / 170152</div>
+            <div class="rule-level lvl-high">12</div>
+            <div class="rule-desc">AddinUtil thực thi với argument trỏ đến path nhạy cảm</div>
+            <div class="rule-badges">
+              <span class="badge badge-both">Sysmon EID1 + 4688</span>
+            </div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-label">Điều kiện phát hiện (AND)</div>
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">win.eventdata.image / newProcessName</div>
+                  <div class="logic-val">Kết thúc bằng <code>\\AddinUtil\.exe</code></div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">win.eventdata.commandLine</div>
+                  <div class="logic-val">Chứa flag <code>-AddinRoot:</code> hoặc <code>-PipelineRoot:</code> <b>kết hợp</b> path nguy hiểm: <code>temp\</code> · <code>users\</code> · <code>downloads\</code> · <code>public\</code> · <code>.\</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Logic: Attacker nạp AddIn từ thư mục writable thay vì path mặc định .NET. Flag -AddinRoot/-PipelineRoot trỏ ra ngoài Program Files là dấu hiệu abuse.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170103 / 170153</div>
+            <div class="rule-level lvl-high">14</div>
+            <div class="rule-desc">AddinUtil spawn child process đáng ngờ</div>
+            <div class="rule-badges">
+              <span class="badge badge-both">Sysmon EID1 + 4688</span>
+            </div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-label">Điều kiện phát hiện (AND)</div>
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">win.eventdata.parentImage / parentProcessName</div>
+                  <div class="logic-val"><code>\\AddinUtil\.exe</code></div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">win.eventdata.image / newProcessName</div>
+                  <div class="logic-val"><code>cmd · powershell · pwsh · mshta · wscript · cscript · rundll32 · regsvr32 · msiexec · certutil · bitsadmin</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Level 14 – cao nhất nhóm. Spawn shell từ LOLBin gần như luôn là payload execution stage.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170104 / 170154</div>
+            <div class="rule-level lvl-med">10</div>
+            <div class="rule-desc">AddinUtil chạy ngoài đường dẫn mặc định</div>
+            <div class="rule-badges">
+              <span class="badge badge-both">Sysmon EID1 + 4688</span>
+            </div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-label">Điều kiện phát hiện</div>
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">win.eventdata.image</div>
+                  <div class="logic-val">Kết thúc bằng <code>\\AddinUtil\.exe</code></div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-not">NOT</span>
+                  <div><div class="logic-field">win.eventdata.image</div>
+                  <div class="logic-val">Không nằm trong <code>Microsoft.NET\Framework(64)\</code> hoặc <code>WinSxS\</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Kỹ thuật masquerading: copy AddinUtil.exe sang path tùy ý để tránh detection theo path.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170105</div>
+            <div class="rule-level lvl-high">11</div>
+            <div class="rule-desc">AddinUtil tạo kết nối mạng ra ngoài</div>
+            <div class="rule-badges">
+              <span class="badge badge-net">Sysmon EID3</span>
+            </div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-label">Điều kiện phát hiện</div>
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">win.eventdata.image</div>
+                  <div class="logic-val"><code>\\AddinUtil\.exe</code> (EID 3 – Network Connect)</div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-list">LIST</span>
+                  <div><div class="logic-field">win.eventdata.ipAddress</div>
+                  <div class="logic-val">Không có trong <code>etc/lists/list-IP</code> (whitelist nội bộ)</div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-not">NOT</span>
+                  <div><div class="logic-field">win.eventdata.ipAddress</div>
+                  <div class="logic-val">Loại trừ <code>127.0.0.1</code> và <code>::1</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ AddinUtil không có lý do hợp lệ để gọi mạng ra ngoài → C2 callback indicator.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== APPINSTALLER ===== -->
+    <div class="lolbin-section" id="section-appinstaller">
+      <div class="section-heading">
+        <div class="section-title">AppInstaller.exe</div>
+        <span class="section-mitre">T1105 · Ingress Tool Transfer</span>
+      </div>
+      <div class="section-divider"></div>
+      <div class="rules-grid">
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170201</div>
+            <div class="rule-level lvl-high">12</div>
+            <div class="rule-desc">ms-appinstaller URI xuất hiện trong PowerShell ScriptBlock (EID 4104)</div>
+            <div class="rule-badges">
+              <span class="badge badge-native">PS EID4104</span>
+            </div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">win.eventdata.scriptBlockText</div>
+                  <div class="logic-val">Chứa <code>ms-appinstaller://?source=http(s)://</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Script gọi protocol handler ms-appinstaller từ PS → attacker dùng PowerShell kích hoạt MSIX payload từ URL ngoài.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170205 / 170255</div>
+            <div class="rule-level lvl-high">12</div>
+            <div class="rule-desc">AppInstaller.exe thực thi trực tiếp với URI protocol</div>
+            <div class="rule-badges">
+              <span class="badge badge-both">Sysmon EID1 + 4688</span>
+            </div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">image / newProcessName</div>
+                  <div class="logic-val"><code>\\AppInstaller\.exe</code></div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">commandLine</div>
+                  <div class="logic-val"><code>ms-appinstaller://?source=https?://</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Kỹ thuật "App Installer Phishing": dụ user click link khiến AppInstaller tải MSIX malware từ attacker-controlled server.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170203</div>
+            <div class="rule-level lvl-med">10</div>
+            <div class="rule-desc">AppInstaller drop file vào INetCache</div>
+            <div class="rule-badges">
+              <span class="badge badge-file">Sysmon EID11</span>
+            </div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">win.eventdata.targetFilename</div>
+                  <div class="logic-val">Match path: <code>Microsoft.DesktopAppInstaller_*/AC/INetCache/</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ File artifact của quá trình download MSIX payload được cache lại – dấu hiệu forensic quan trọng.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170204</div>
+            <div class="rule-level lvl-high">11</div>
+            <div class="rule-desc">AppInstaller tạo kết nối mạng ra ngoài</div>
+            <div class="rule-badges">
+              <span class="badge badge-net">Sysmon EID3</span>
+            </div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">image</div><div class="logic-val"><code>\\AppInstaller\.exe</code></div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-list">LIST</span>
+                  <div><div class="logic-field">ipAddress</div><div class="logic-val">Không có trong whitelist <code>list-IP</code>, không phải loopback</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Corroborate rule 170205/170255 – network event xác nhận có tải payload từ bên ngoài.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== ASPNET ===== -->
+    <div class="lolbin-section" id="section-aspnet">
+      <div class="section-heading">
+        <div class="section-title">aspnet_compiler.exe</div>
+        <span class="section-mitre">T1127 · Trusted Developer Utilities Proxy Execution</span>
+      </div>
+      <div class="section-divider"></div>
+      <div class="rules-grid">
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170211 / 170261</div>
+            <div class="rule-level lvl-med">10</div>
+            <div class="rule-desc">aspnet_compiler nạp từ path writable nhạy cảm</div>
+            <div class="rule-badges"><span class="badge badge-both">Sysmon EID1 + 4688</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">commandLine</div>
+                  <div class="logic-val">Chứa path: <code>\public\</code> · <code>\temp\</code> · <code>\downloads\</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Compiler được trỏ biên dịch web app từ thư mục user-writable → compile-time payload execution.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170212 / 170262</div>
+            <div class="rule-level lvl-high">13</div>
+            <div class="rule-desc">aspnet_compiler spawn child process đáng ngờ</div>
+            <div class="rule-badges"><span class="badge badge-both">Sysmon EID1 + 4688</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">parentImage</div><div class="logic-val"><code>\\aspnet_compiler\.exe</code></div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">image / newProcessName</div>
+                  <div class="logic-val"><code>cmd · powershell · pwsh · mshta · wscript · cscript · rundll32 · regsvr32 · msiexec · certutil · bitsadmin</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Compiler không bao giờ nên spawn shell. Đây là sign of compiled malicious ASPX executing attacker shell.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== AT ===== -->
+    <div class="lolbin-section" id="section-at">
+      <div class="section-heading">
+        <div class="section-title">At.exe</div>
+        <span class="section-mitre">T1053.002 · Scheduled Task/Job: At</span>
+      </div>
+      <div class="section-divider"></div>
+      <div class="rules-grid">
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170301 / 170351</div>
+            <div class="rule-level lvl-high">11</div>
+            <div class="rule-desc">At.exe thực thi với flag /interactive</div>
+            <div class="rule-badges"><span class="badge badge-both">Sysmon EID1 + 4688</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">commandLine</div>
+                  <div class="logic-val">Chứa flag <code>/interactive</code> hoặc <code>-interactive</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Flag /interactive cho phép task chạy trong desktop session của user – thủ thuật cổ điển để spawn SYSTEM shell tương tác.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170302 / 170352</div>
+            <div class="rule-level lvl-high">12</div>
+            <div class="rule-desc">At.exe nhắm đến remote target (Lateral Movement)</div>
+            <div class="rule-badges"><span class="badge badge-both">Sysmon EID1 + 4688</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">commandLine</div>
+                  <div class="logic-val">Chứa UNC path: <code>\\\\hostname</code> (regex: <code>\\\\[a-z0-9\.\-]+</code>)</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ At.exe với UNC path → schedule task trên máy từ xa, kỹ thuật lateral movement kinh điển.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== ATBROKER ===== -->
+    <div class="lolbin-section" id="section-atbroker">
+      <div class="section-heading">
+        <div class="section-title">ATBroker.exe</div>
+        <span class="section-mitre">T1546.008 · Event Triggered Execution: Accessibility Features</span>
+      </div>
+      <div class="section-divider"></div>
+      <div class="rules-grid">
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170321 / 170371</div>
+            <div class="rule-level lvl-high">12</div>
+            <div class="rule-desc">ATBroker với payload name không phải AT hợp lệ</div>
+            <div class="rule-badges"><span class="badge badge-both">Sysmon EID1 + 4688</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">commandLine</div><div class="logic-val">Chứa <code>-start</code> hoặc <code>/start</code></div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-not">NOT</span>
+                  <div><div class="logic-field">commandLine</div>
+                  <div class="logic-val">Whitelist AT hợp lệ: <code>Narrator · osk · Magnifier · filterkeys · stickykeys · mousekeys · togglekeys · highcontrast · ...</code> (22 entries)</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Attacker đăng ký AT tùy chỉnh trong registry rồi gọi ATBroker /start &lt;payload_name&gt; để proxy execute. Logic NOT-whitelist là cốt lõi.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170322</div>
+            <div class="rule-level lvl-high">13</div>
+            <div class="rule-desc">Registry persistence qua Accessibility Features (Sysmon 12/13/14)</div>
+            <div class="rule-badges"><span class="badge badge-reg">Sysmon EID 12/13/14</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">win.eventdata.targetObject</div>
+                  <div class="logic-val">Match: <code>Software\Microsoft\Windows NT\CurrentVersion\Accessibility\ATs</code> hoặc <code>\Configuration</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Ghi registry AT entry là bước chuẩn bị trước khi gọi ATBroker. EID 12=Create, 13=SetValue, 14=Rename.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170323</div>
+            <div class="rule-level lvl-high">13</div>
+            <div class="rule-desc">Registry persistence qua Accessibility Features (Native EID 4657)</div>
+            <div class="rule-badges"><span class="badge badge-native">Native EID4657</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">win.eventdata.objectName</div>
+                  <div class="logic-val">Match: <code>Software\Microsoft\Windows NT\CurrentVersion\Accessibility(\ATs.*)?</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ EID 4657 cần bật audit "Registry" trong Advanced Audit Policy. Cùng mục đích với 170322 nhưng qua Security log thay Sysmon.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== BASH ===== -->
+    <div class="lolbin-section" id="section-bash">
+      <div class="section-heading">
+        <div class="section-title">Bash.exe</div>
+        <span class="section-mitre">T1202 · Indirect Command Execution</span>
+      </div>
+      <div class="section-divider"></div>
+      <div class="rules-grid">
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170331 / 170381</div>
+            <div class="rule-level lvl-low">7</div>
+            <div class="rule-desc">Bash.exe gọi với tham số -c (base detection)</div>
+            <div class="rule-badges"><span class="badge badge-both">Sysmon EID1 + 4688</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">commandLine</div><div class="logic-val">Chứa <code>-c </code> (execute command string)</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Level 7 – tín hiệu yếu vì -c là cú pháp bình thường của WSL bash. Rule này làm base cho các rule enrichment phía dưới.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170332 / 170382</div>
+            <div class="rule-level lvl-high">13</div>
+            <div class="rule-desc">Bash.exe -c chứa indicator mạng / download / path Windows</div>
+            <div class="rule-badges"><span class="badge badge-both">Sysmon EID1 + 4688</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">commandLine</div><div class="logic-val">Chứa <code>-c </code></div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">commandLine</div>
+                  <div class="logic-val">Chứa bất kỳ: <code>/dev/tcp</code> · <code>tcp-connect</code> · <code>nc </code> · <code>curl </code> · <code>wget </code> · <code>C:\</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ /dev/tcp là reverse shell technique phổ biến trong bash. curl/wget tải payload. C:\ truy cập Windows FS từ WSL.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170333 / 170383</div>
+            <div class="rule-level lvl-high">13</div>
+            <div class="rule-desc">Bash.exe spawn child process đáng ngờ</div>
+            <div class="rule-badges"><span class="badge badge-both">Sysmon EID1 + 4688</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">parentImage</div><div class="logic-val"><code>\\bash\.exe</code></div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">image</div>
+                  <div class="logic-val"><code>cmd · powershell · pwsh · mshta · wscript · cscript · rundll32 · regsvr32 · msiexec · certutil · bitsadmin</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ WSL bash spawn Windows native process → cross-boundary execution, thường dùng để bypass script-block logging.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170334</div>
+            <div class="rule-level lvl-high">11</div>
+            <div class="rule-desc">Bash.exe tạo kết nối mạng ra ngoài</div>
+            <div class="rule-badges"><span class="badge badge-net">Sysmon EID3</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">image</div><div class="logic-val"><code>\\bash\.exe</code> (EID3)</div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-list">LIST</span>
+                  <div><div class="logic-field">ipAddress</div><div class="logic-val">Không có trong whitelist nội bộ, không phải loopback</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Corroborate 170332 – network artifact xác nhận reverse shell hoặc C2 beacon qua /dev/tcp.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== BITSADMIN ===== -->
+    <div class="lolbin-section" id="section-bitsadmin">
+      <div class="section-heading">
+        <div class="section-title">Bitsadmin.exe</div>
+        <span class="section-mitre">T1197 · BITS Jobs · T1105 · Ingress Tool Transfer</span>
+      </div>
+      <div class="section-divider"></div>
+      <div class="rules-grid">
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170401 / 170451</div>
+            <div class="rule-level lvl-med">10</div>
+            <div class="rule-desc">Bitsadmin với flag transfer/addfile/setnotifycmdline</div>
+            <div class="rule-badges"><span class="badge badge-both">Sysmon EID1 + 4688</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">commandLine</div>
+                  <div class="logic-val">Chứa: <code>/transfer</code> · <code>/addfile</code> · <code>/setnotifycmdline</code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ /transfer = tải file trực tiếp; /addfile = thêm URL vào job; /setnotifycmdline = persistence khi job hoàn thành → execute payload.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170402 / 170452</div>
+            <div class="rule-level lvl-low">5</div>
+            <div class="rule-desc">Bitsadmin generic job commands (thấp – baseline)</div>
+            <div class="rule-badges"><span class="badge badge-both">Sysmon EID1 + 4688</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">commandLine</div>
+                  <div class="logic-val">Chứa: <code>/create</code> · <code>/resume</code> · <code>/complete</code> + job name</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Level 5 – telemetry/baseline. /create+/resume+/complete là workflow chuẩn của BITS abuse nhưng cũng có false positive cao.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170404</div>
+            <div class="rule-level lvl-high">11</div>
+            <div class="rule-desc">Bitsadmin tạo kết nối mạng ra ngoài</div>
+            <div class="rule-badges"><span class="badge badge-net">Sysmon EID3</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">image</div><div class="logic-val"><code>\\bitsadmin\.exe</code> (EID3)</div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-list">LIST</span>
+                  <div><div class="logic-field">ipAddress</div><div class="logic-val">Không có trong whitelist, không phải loopback</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Network event xác nhận bitsadmin đang thực sự tải dữ liệu từ C2, không chỉ enumerate job.</div>
+          </div>
+        </div>
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170405</div>
+            <div class="rule-level lvl-med">10</div>
+            <div class="rule-desc">Bitsadmin tạo file (Payload Drop)</div>
+            <div class="rule-badges"><span class="badge badge-file">Sysmon EID11</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">image</div><div class="logic-val"><code>\\bitsadmin\.exe</code> (EID11 – FileCreate)</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ Catch-all: bất kỳ file nào được tạo bởi bitsadmin đều đáng suspect. Cần xem targetFilename để triage.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== CERTOC ===== -->
+    <div class="lolbin-section" id="section-certoc">
+      <div class="section-heading">
+        <div class="section-title">CertOC.exe</div>
+        <span class="section-mitre">T1218 · System Binary Proxy Execution · T1105</span>
+      </div>
+      <div class="section-divider"></div>
+      <div class="rules-grid">
+
+        <div class="rule-card" onclick="toggle(this)">
+          <div class="rule-header">
+            <div class="rule-id">170501 / 170551</div>
+            <div class="rule-level lvl-high">13</div>
+            <div class="rule-desc">CertOC dùng để load DLL tùy ý (-LoadDLL)</div>
+            <div class="rule-badges"><span class="badge badge-both">Sysmon EID1 + 4688</span></div>
+            <span class="rule-chevron">▼</span>
+          </div>
+          <div class="rule-body">
+            <div class="logic-block">
+              <div class="logic-items">
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">image / newProcessName</div><div class="logic-val"><code>\\certoc\.exe</code></div></div>
+                </div>
+                <div class="logic-item">
+                  <span class="logic-op op-and">AND</span>
+                  <div><div class="logic-field">commandLine</div><div class="logic-val">Chứa <code>-LoadDLL </code></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="alert-block">⚡ CertOC.exe là binary ít được biết đến, có thể load DLL bất kỳ tương tự regsvr32. -LoadDLL với path ngoài System32 là IoC rõ ràng. Không có false positive hợp lệ trong môi trường production.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  function showSection(el, target) {
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.lolbin-section').forEach(s => s.classList.remove('active'));
+    document.getElementById('section-' + target).classList.add('active');
+    // collapse all cards when switching
+    document.querySelectorAll('.rule-card').forEach(c => c.classList.remove('expanded'));
+  }
+
+  function toggle(card) {
+    card.classList.toggle('expanded');
+  }
+
+  function filterRules() {
+    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+    if (!q) {
+      // restore normal view
+      document.querySelectorAll('.rule-card').forEach(c => { c.style.display = ''; });
+      return;
+    }
+    // Show all sections, filter cards
+    document.querySelectorAll('.lolbin-section').forEach(s => s.classList.add('active'));
+    document.querySelectorAll('.rule-card').forEach(card => {
+      const text = card.textContent.toLowerCase();
+      card.style.display = text.includes(q) ? '' : 'none';
+    });
+  }
+</script>
+</body>
+</html>
